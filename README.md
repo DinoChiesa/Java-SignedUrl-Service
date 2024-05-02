@@ -88,17 +88,17 @@ There are two options - _alternatives_ - desceribed here:
 
 3. Deploy that image to Cloud Run:
    ```
-  PROJECT_ID=your-gcp-project
-  gcloud run deploy signedurl-service \
-    --image gcr.io/${PROJECT_ID}/cloud-builds-submit/signed-url-generator-container:20240501 \
-    --cpu 1 \
-    --memory '256Mi' \
-    --min-instances 1 \
-    --max-instances 1 \
-    --allow-unauthenticated \
-    --project ${PROJECT_ID}\
-    --region us-west1 \
-    --timeout 300
+   PROJECT_ID=your-gcp-project
+   gcloud run deploy signedurl-service \
+     --image gcr.io/${PROJECT_ID}/cloud-builds-submit/signed-url-generator-container:20240501 \
+     --cpu 1 \
+     --memory '256Mi' \
+     --min-instances 1 \
+     --max-instances 1 \
+     --allow-unauthenticated \
+     --project ${PROJECT_ID}\
+     --region us-west1 \
+     --timeout 300
    ```
 
 Access it via the URL emitted by that command.
@@ -108,17 +108,17 @@ Access it via the URL emitted by that command.
 
 Use the gcloud command line tool to build and deploy in one step.
 ```
-  PROJECT_ID=your-gcp-project
-  gcloud run deploy signedurl-service \
-    --source . \
-    --cpu 1 \
-    --memory '256Mi' \
-    --min-instances 1 \
-    --max-instances 1 \
-    --allow-unauthenticated \
-    --project ${PROJECT_ID}\
-    --region us-west1 \
-    --timeout 300
+PROJECT_ID=your-gcp-project
+gcloud run deploy signedurl-service \
+ --source . \
+ --cpu 1 \
+ --memory '256Mi' \
+ --min-instances 1 \
+ --max-instances 1 \
+ --allow-unauthenticated \
+ --project ${PROJECT_ID}\
+ --region us-west1 \
+ --timeout 300
 ```
 
 And again, access it via the URL emitted by that command.
@@ -129,6 +129,10 @@ And again, access it via the URL emitted by that command.
 This material is Copyright 2019-2024
 Google LLC and is licensed under the [Apache 2.0
 License](LICENSE).
+
+
 ## Bugs
 
-??
+- This implementation requires that the caller send in the private key.
+  To be correct, the implementation should retrieve the private key from the
+  Google Cloud Secret Manager.
