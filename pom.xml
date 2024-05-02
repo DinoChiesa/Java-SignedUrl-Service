@@ -1,0 +1,214 @@
+<?xml version="1.0"?>
+<project xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd"
+         xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.google.examples</groupId>
+  <artifactId>signed-url-generator</artifactId>
+  <version>20240501</version>
+  <name>SignedUrlGeneratorService</name>
+  <url>http://maven.apache.org</url>
+  <packaging>jar</packaging>
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+    <maven.compiler.target>11</maven.compiler.target>
+    <maven.compiler.source>11</maven.compiler.source>
+    <testng.version>6.9.4</testng.version>
+    <bouncycastle.version>1.70</bouncycastle.version>
+    <javalin.version>6.1.3</javalin.version>
+    <gson.version>2.10.1</gson.version>
+    <gcp-project-name>${env.PROJECT_ID}</gcp-project-name>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.bouncycastle</groupId>
+      <artifactId>bcprov-jdk15on</artifactId>
+      <version>${bouncycastle.version}</version>
+    </dependency>
+
+    <dependency>
+      <groupId>org.bouncycastle</groupId>
+      <artifactId>bcpkix-jdk15on</artifactId>
+      <version>${bouncycastle.version}</version>
+    </dependency>
+
+    <dependency>
+      <groupId>com.google.code.gson</groupId>
+      <artifactId>gson</artifactId>
+      <version>${gson.version}</version>
+    </dependency>
+
+    <dependency>
+      <groupId>io.javalin</groupId>
+      <artifactId>javalin</artifactId>
+      <version>${javalin.version}</version>
+    </dependency>
+
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-simple</artifactId>
+      <version>2.0.10</version>
+    </dependency>
+
+
+    <dependency>
+      <groupId>org.testng</groupId>
+      <artifactId>testng</artifactId>
+      <version>${testng.version}</version>
+      <scope>test</scope>
+    </dependency>
+
+  </dependencies>
+
+  <build>
+    <finalName>${project.artifactId}-${project.version}</finalName>
+    <plugins>
+
+      <!--
+          This plugin gets used with `mvn compile jib:build` It does not get
+          called with `mvn clean package`.
+
+          With no cloudbuild.yaml, during `gcloud run deploy`, the build will be
+          performed by Cloud Build via the skaffold pack builder, which does not
+          use the jib-maven-plugin.
+
+          But if you want to just build via maven and push an image to a Container
+          Registry repo, `PROJECT_ID=my-gcp-project mvn compile jib:build`
+          will do it.
+       -->
+
+      <plugin>
+        <groupId>com.google.cloud.tools</groupId>
+        <artifactId>jib-maven-plugin</artifactId>
+        <version>3.4.2</version>
+        <configuration>
+          <to>
+            <!--
+                The jib plugin will push the built image into this specific
+                Artifact Registry repo & path. What follows the colon (the
+                version here) will be a tag.
+            -->
+            <image>gcr.io/${gcp-project-name}/cloud-builds-submit/${project.artifactId}-container:${project.version}</image>
+
+            <!-- Later, can deploy this with:
+
+                 gcloud run deploy SERVICE-NAME -+-image gcr.io/full.url.here -+-platform managed ...
+            -->
+          </to>
+        </configuration>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-resources-plugin</artifactId>
+        <version>3.3.1</version>
+        <configuration>
+          <!-- this says to put the resources in a subdir within the jar -->
+          <outputDirectory>${project.build.outputDirectory}/resources</outputDirectory>
+        </configuration>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-dependency-plugin</artifactId>
+        <version>3.6.1</version>
+        <executions>
+          <execution>
+            <id>copy-dependencies</id>
+            <phase>prepare-package</phase>
+            <goals>
+              <goal>copy-dependencies</goal>
+            </goals>
+            <configuration>
+              <!-- copy all dependencies to staging dir -->
+              <outputDirectory>${project.build.directory}/lib</outputDirectory>
+              <includeScope>runtime</includeScope>
+              <overWriteReleases>false</overWriteReleases>
+              <overWriteSnapshots>false</overWriteSnapshots>
+              <overWriteIfNewer>true</overWriteIfNewer>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.13.0</version>
+        <configuration>
+          <release>${maven.compiler.target}</release>
+          <compilerArgument>-Xlint:unchecked</compilerArgument>
+
+          <!--
+          <compilerArgs>
+             <arg>-Xlint:deprecation</arg>
+          </compilerArgs>
+          -->
+        </configuration>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <version>3.4.1</version>
+        <configuration>
+          <archive>
+            <!-- include the pom.xml in the generated jar (this may be the default) -->
+            <addMavenDescriptor>true</addMavenDescriptor>
+            <manifestEntries>
+                <Built-By>${user.name}</Built-By>
+                <Build-Jdk>${java.version}</Build-Jdk>
+                <Build-Time>${maven.build.timestamp}</Build-Time>
+                <Project-Version>${project.version}</Project-Version>
+            </manifestEntries>
+            <!-- make the jar executable -->
+            <manifest>
+              <addClasspath>true</addClasspath>
+              <classpathPrefix>lib/</classpathPrefix>
+              <mainClass>com.google.examples.SignedUrlGeneratorService</mainClass>
+            </manifest>
+          </archive>
+        </configuration>
+      </plugin>
+
+     <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-enforcer-plugin</artifactId>
+        <version>3.4.1</version>
+        <executions>
+          <execution>
+            <id>enforce-maven</id>
+            <goals>
+              <goal>enforce</goal>
+            </goals>
+            <configuration>
+              <rules>
+                <requireMavenVersion>
+                  <version>3.6.3</version>
+                </requireMavenVersion>
+              </rules>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
+       <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>versions-maven-plugin</artifactId>
+        <version>2.16.2</version>
+        <executions>
+          <execution>
+            <phase>compile</phase>
+            <goals>
+              <goal>display-dependency-updates</goal>
+              <goal>display-plugin-updates</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+
+    </plugins>
+  </build>
+</project>
