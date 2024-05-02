@@ -17,11 +17,11 @@ This tool is not an official Google product, nor is it part of an official Googl
 curl 0:8080/sign -H content-type:application/json -d '{
   "verb": "GET",
   "expires-in": "60s",
-  "bucket": "dchiesa-sample-bucket",
-  "object": "clarify-argolis.png",
+  "bucket": "unique-bucket-id",
+  "object": "cute-kittens.png",
   "service-account-key": {
     "private_key": "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n",
-    "client_email": "storage-reader-4109@infinite-epoch-2900.iam.gserviceaccount.com"
+    "client_email": "storage-reader-123456@my-gcp-project-id.iam.gserviceaccount.com"
   }
 }
 '
