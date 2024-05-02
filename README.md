@@ -102,7 +102,8 @@ There are two options - _alternatives_ - desceribed here:
 
 2. Build the container image locally, and publish it to Artifact Registry:
    ```
-   PROJECT_ID=your-gcp-project-here mvn compile jib:build`
+   export PROJECT_ID=your-gcp-project-here
+   mvn package jib:build
    ```
 
    Observe the output URL for the image.  It will look like:
@@ -114,12 +115,11 @@ There are two options - _alternatives_ - desceribed here:
 
 3. Deploy that image to Cloud Run:
    ```
-   PROJECT_ID=your-gcp-project-here
    gcloud run deploy signedurl-service \
      --image gcr.io/${PROJECT_ID}/cloud-builds-submit/signed-url-generator-container:20240502 \
      --cpu 1 \
      --memory '256Mi' \
-     --min-instances 1 \
+     --min-instances 0 \
      --max-instances 1 \
      --allow-unauthenticated \
      --project ${PROJECT_ID}\
@@ -139,7 +139,7 @@ gcloud run deploy signedurl-service \
  --source . \
  --cpu 1 \
  --memory '256Mi' \
- --min-instances 1 \
+ --min-instances 0 \
  --max-instances 1 \
  --allow-unauthenticated \
  --project ${PROJECT_ID}\
@@ -192,7 +192,7 @@ To make this work, you must:
      --image gcr.io/${PROJECT_ID}/cloud-builds-submit/signed-url-generator-container:20240502 \
      --cpu 1 \
      --memory '256Mi' \
-     --min-instances 1 \
+     --min-instances 0 \
      --max-instances 1 \
      --allow-unauthenticated \
      --project ${PROJECT_ID} \
