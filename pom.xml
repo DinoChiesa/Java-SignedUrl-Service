@@ -5,7 +5,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>com.google.examples</groupId>
   <artifactId>signed-url-generator</artifactId>
-  <version>20240501</version>
+  <version>20240502</version>
   <name>SignedUrlGeneratorService</name>
   <url>http://maven.apache.org</url>
   <packaging>jar</packaging>
@@ -84,6 +84,7 @@
         <artifactId>jib-maven-plugin</artifactId>
         <version>3.4.2</version>
         <configuration>
+          <containerizingMode>packaged</containerizingMode>
           <to>
             <!--
                 The jib plugin will push the built image into this specific

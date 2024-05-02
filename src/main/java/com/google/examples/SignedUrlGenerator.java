@@ -21,7 +21,11 @@ import com.google.gson.reflect.TypeToken;
 import io.javalin.http.Context;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.net.URI;
 import java.net.URLEncoder;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyPair;
 import java.time.Instant;
@@ -29,6 +33,7 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -47,9 +52,14 @@ public class SignedUrlGenerator {
   private static final long MAX_EXPIRY = 604800L;
   private static final DateTimeFormatter dateTimeFormatter =
       DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss'Z'");
+  private final String WELL_KNOWN_TOKEN_URI =
+      "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token";
 
   private static final String V4_SIGNED_URL_SPEC =
       "https://storage.googleapis.com{resource}?{canonical_query_string}&X-Goog-Signature={hex-signature}";
+  private static final String IAM_CREDENTIALS_SIGNBLOB_SPEC =
+      "https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/{serviceAccountEmail}:signBlob";
+
   private static final String RSA_SIGNING_ALGORITHM = "GOOG4-RSA-SHA256";
 
   private static final Gson gson = new GsonBuilder().setPrettyPrinting().create();
@@ -306,7 +316,74 @@ public class SignedUrlGenerator {
     return sb.toString();
   }
 
-  public void generateSignature(final Context ctx) throws Exception {
+  private byte[] signLocally(final String stringToSign, final String privateKey) throws Exception {
+    KeyPair keypair = KeyUtility.readKeyPair(privateKey, null);
+    byte[] signatureBytes = sign_RSA_SHA256(stringToSign, keypair);
+    return signatureBytes;
+  }
+
+  private byte[] callSignBlob(final String stringToSign, final Map<String, Object> state)
+      throws Exception {
+    HttpClient client = HttpClient.newHttpClient();
+    // this token should be cached
+    HttpRequest request1 =
+        HttpRequest.newBuilder()
+            .header("Metadata-Flavor", "Google")
+            .uri(new URI(WELL_KNOWN_TOKEN_URI))
+            .GET()
+            .build();
+    HttpResponse<String> response1 = client.send(request1, HttpResponse.BodyHandlers.ofString());
+    if (response1.statusCode() != 200) {
+      throw new IllegalStateException(
+          String.format("cannot obtain token (%d)", response1.statusCode()));
+    }
+    // HttpHeaders headers = response1.headers();
+    java.lang.reflect.Type t = new TypeToken<Map<String, Object>>() {}.getType();
+    Map<String, Object> responseJson1 = gson.fromJson(response1.body(), t);
+    // {
+    //   "access_token": "ya29.a...",
+    //   "expires_in": 3579,
+    //   "token_type": "Bearer"
+    // }
+    String accesstoken = (String) responseJson1.get("access_token");
+
+    // POST https://iamcredentials.googleapis.com/v1/{name=projects/*/serviceAccounts/*}:signBlob
+    String signBlobUrl = resolvePropertyValue(IAM_CREDENTIALS_SIGNBLOB_SPEC, state);
+    logger.info(String.format("signblob url: %s", signBlobUrl));
+    String requestJson =
+        String.format(
+            "{ \"payload\": \"%s\" }",
+            Base64.getEncoder().withoutPadding().encodeToString(stringToSign.getBytes()));
+    HttpRequest request2 =
+        HttpRequest.newBuilder()
+            .header("Authorization", "Bearer " + accesstoken)
+            .header("content-type", "application/json")
+            .uri(new URI(signBlobUrl))
+            .POST(HttpRequest.BodyPublishers.ofString(requestJson))
+            .build();
+    HttpResponse<String> response2 = client.send(request2, HttpResponse.BodyHandlers.ofString());
+    if (response2.statusCode() != 200) {
+      logger.info(String.format("signblob failed => %d", response2.statusCode()));
+      logger.info(String.format("signblob response => %s", response2.body()));
+      throw new IllegalStateException(
+          String.format("sign blob failed (%d)", response2.statusCode()));
+    }
+    // HttpHeaders headers = response2.headers();
+    Map<String, Object> responseJson2 = gson.fromJson(response2.body(), t);
+    String base64EncodedSignature = (String) responseJson2.get("signedBlob");
+    byte[] signatureBytes = Base64.getDecoder().decode(base64EncodedSignature);
+    return signatureBytes;
+  }
+
+  public void generateSignatureLocally(final Context ctx) throws Exception {
+    generateSignature(false, ctx);
+  }
+
+  public void generateSignatureViaSignBlob(final Context ctx) throws Exception {
+    generateSignature(true, ctx);
+  }
+
+  private void generateSignature(final boolean useSignBlob, final Context ctx) throws Exception {
     if (ctx.contentType() == null || !ctx.contentType().startsWith("application/json")) {
       ctx.status(415).header("Content-Type", "text/plain").result("unsupported media type");
       return;
@@ -318,9 +395,12 @@ public class SignedUrlGenerator {
         ctx.status(400).header("Content-Type", "text/plain").result("payload cannot be parsed");
         return;
       }
-      if (!config.containsKey("service-account-key")
-          || !config.containsKey("verb")
-          || !config.containsKey("expires-in")) {
+      boolean missingProperties =
+          !config.containsKey("verb")
+              || !config.containsKey("expires-in")
+              || (!config.containsKey("service-account-key") && !useSignBlob)
+              || (!config.containsKey("service-account-email") && useSignBlob);
+      if (missingProperties) {
         ctx.status(400)
             .header("Content-Type", "text/plain")
             .result("missing required json properties");
@@ -330,21 +410,34 @@ public class SignedUrlGenerator {
       Map<String, Object> state = new HashMap<String, Object>();
       state.put("now", now);
 
-      @SuppressWarnings("unchecked")
-      Map<String, String> serviceAccountInfo =
-          (Map<String, String>) config.get("service-account-key");
+      if (useSignBlob) {
+        String clientEmail = (String) config.get("service-account-email");
+        state.put("serviceAccountEmail", clientEmail);
+      } else {
+        @SuppressWarnings("unchecked")
+        Map<String, String> serviceAccountInfo =
+            (Map<String, String>) config.get("service-account-key");
 
-      String clientEmail = serviceAccountInfo.get("client_email");
-      if (clientEmail == null)
-        throw new IllegalStateException("the service account key data is invalid");
-      state.put("serviceAccountEmail", clientEmail);
+        String clientEmail = serviceAccountInfo.get("client_email");
+        if (clientEmail == null)
+          throw new IllegalStateException("the service account key data is invalid");
+        state.put("serviceAccountEmail", clientEmail);
+      }
 
       Map<String, String> result = new HashMap<String, String>();
       String stringToSign = getStringToSign(config, state);
       result.put("string-to-sign", stringToSign);
 
-      KeyPair keypair = KeyUtility.readKeyPair(serviceAccountInfo.get("private_key"), null);
-      byte[] signatureBytes = sign_RSA_SHA256(stringToSign, keypair);
+      byte[] signatureBytes = null;
+      if (useSignBlob) {
+        signatureBytes = callSignBlob(stringToSign, state);
+      } else {
+        @SuppressWarnings("unchecked")
+        Map<String, String> serviceAccountInfo =
+            (Map<String, String>) config.get("service-account-key");
+        signatureBytes = signLocally(stringToSign, serviceAccountInfo.get("private_key"));
+      }
+
       String hexSignature = org.bouncycastle.util.encoders.Hex.toHexString(signatureBytes);
 
       result.put("hex-signature", hexSignature);
@@ -355,7 +448,10 @@ public class SignedUrlGenerator {
       result.put("expiration", (String) state.get("expiration_ISO"));
 
       String json = gson.toJson(result);
-      ctx.status(200).header("Content-Type", "application/json").result(json + "\n");
+      ctx.status(200)
+          .header("Content-Type", "application/json")
+          .header("signed-url", signedUrl)
+          .result(json + "\n");
     } catch (Exception exc1) {
       exc1.printStackTrace();
       Map<String, String> result = new HashMap<String, String>();

@@ -32,6 +32,18 @@
 //       }
 //     }
 //
+//   POST /sign2
+//     for generating signed URL with the signblob call
+//
+//     payload:
+//     {
+//       "verb": "GET",
+//       "expires-in": "60s",
+//       "bucket": "dchiesa-sample-bucket",
+//       "object": "clarify-argolis.png",
+//       "service-account-email": "storage-reader-4109@infinite-epoch-2900.iam.gserviceaccount.com"
+//     }
+//
 //   GET /info
 //     for returning info about the service
 //
@@ -161,7 +173,8 @@ public class SignedUrlGeneratorService {
                         .result(gson.toJson(result) + "\n");
                     // logger.info(String.format("%s %s => 200", ctx.method(), ctx.path()));
                   })
-              .post("/sign", signedUrlGenerator::generateSignature)
+              .post("/sign", signedUrlGenerator::generateSignatureLocally)
+              .post("/sign2", signedUrlGenerator::generateSignatureViaSignBlob)
               .start(port);
 
     } catch (java.lang.Exception exc1) {
