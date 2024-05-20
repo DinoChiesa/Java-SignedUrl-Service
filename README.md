@@ -11,7 +11,7 @@ This tool is not an official Google product, nor is it part of an official Googl
 
 # Usage Examples
 
-## Get a signed URL
+## Get a signed URL - Sending a Private Key
 
 ```
 curl ${endpoint}/sign -H content-type:application/json -d '{
@@ -42,6 +42,30 @@ like `X-Goog-Algorithm=GOOG4-RSA-SHA256`, you see
 `X-Goog-Algorithm\u003dGOOG4-RSA-SHA256` in the above.  Your app will need to
 decode that URL, before trying to dereference it.  You cannot simply copy/paste
 that into the browser address bar.
+
+
+
+## Get a signed URL - via signBlob
+
+There's a second
+option, to use the [signBlob
+method](https://cloud.google.com/iam/docs/reference/credentials/rest/v1/projects.serviceAccounts/signBlob).
+This does not require that the caller send in a private key.  Instead the caller sends in the full email  of the service account, that should generate the signed url.
+
+The request looks like this:
+
+```
+curl ${endpoint}/sign2 -H content-type:application/json -d '{
+  "verb": "GET",
+  "expires-in": "60s",
+  "bucket": "unique-bucket-id",
+  "object": "cute-kittens.png",
+  "service-account-email": "storage-reader-123456@my-gcp-project-id.iam.gserviceaccount.com"
+}
+'
+```
+
+BUT!  To make this work, you need to perform some additional setup, which is described below.
 
 
 ## Inquire (diagnostics)
@@ -142,33 +166,19 @@ gcloud run deploy signedurl-service \
 And again, access it via the URL emitted by that command.
 
 
-## Using signBlob
+## Additional Setup for Using signBlob
 
-The first option is for the caller to pass in an RSA private key for the service
-account, and to generate the signed URL using that key.  There's a second
-option, to use the [signBlob
-method](https://cloud.google.com/iam/docs/reference/credentials/rest/v1/projects.serviceAccounts/signBlob).
-This does not require that the caller send in a private key.  Instead the caller sends in the full email  of the service account, that should generate the signed url.
+[`signBlob`](https://cloud.google.com/iam/docs/reference/credentials/rest/v1/projects.serviceAccounts/signBlob) is a method on the `iamcredentials` API in Google Cloud.
+It signs a blob using the system-managed private key for a particular service account. Using the signBlob approach means you do not need to transmit a private key to the service, in order to generated the signed URL.
 
-The request looks like this:
-
-```
-curl ${endpoint}/sign2 -H content-type:application/json -d '{
-  "verb": "GET",
-  "expires-in": "60s",
-  "bucket": "unique-bucket-id",
-  "object": "cute-kittens.png",
-  "service-account-email": "storage-reader-123456@my-gcp-project-id.iam.gserviceaccount.com"
-}
-'
-```
-
-To make this work, you must:
+To make this signing service work with signBlob, you must:
 
 1. Grant role `iam.serviceAccountTokenCreator` on the Service Account that will generate the signature, to the Service Account that the Cloud Run service runs as.
    Do this with:
 
    ```
+   EMAIL_OF_SA_FOR_SIGNING=storage-reader-123456@my-gcp-project-id.iam.gserviceaccount.com
+   EMAIL_OF_SA_FOR_SERVICE=signing-service-abc123@my-gcp-project-id.iam.gserviceaccount.com
    gcloud iam service-accounts add-iam-policy-binding ${EMAIL_OF_SA_FOR_SIGNING} \
      --member="serviceAccount:${EMAIL_OF_SA_FOR_SERVICE}" \
      --role='roles/iam.serviceAccountTokenCreator' \
@@ -179,7 +189,7 @@ To make this work, you must:
    This is required even if you use the same Service account for the Cloud Run service, as you do for signing.
 
 
-2. Deploy the service with that Service account:
+2. Deploy the service into Cloud run with that Service account:
    ```
    gcloud run deploy signedurl-service \
      --image gcr.io/${PROJECT_ID}/cloud-builds-submit/signed-url-generator-container:20240502 \
@@ -196,6 +206,18 @@ To make this work, you must:
 
 3. Restrict who can access this service! Remember, anyone with access to the URL can generate signed URLs.
 
+
+4. Then you can invoke the service:
+   ```
+   curl ${endpoint}/sign2 -H content-type:application/json -d '{
+     "verb": "GET",
+     "expires-in": "60s",
+     "bucket": "unique-bucket-id",
+     "object": "cute-kittens.png",
+     "service-account-email": "'${EMAIL_OF_SA_FOR_SIGNING}'"
+   }
+   '
+   ```
 
 
 ## License
