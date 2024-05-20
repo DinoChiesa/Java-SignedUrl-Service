@@ -92,15 +92,7 @@ There are two options - _alternatives_ - desceribed here:
 
 ### Building locally and deploying separately
 
-1. Modify the pom.xml file to specify YOUR projectId in the properties element.
-   ```
-   <properties>
-     ...
-     <gcp-project-name>your-gcp-project-here</gcp-project-name> <!-- HERE -->
-   </properties>
-   ```
-
-2. Build the container image locally, and publish it to Artifact Registry:
+1. Build the container image locally, and publish it to Artifact Registry:
    ```
    export PROJECT_ID=your-gcp-project-here
    mvn package jib:build
@@ -113,7 +105,7 @@ There are two options - _alternatives_ - desceribed here:
 
    Optionally, you could now run the image locally, or in any container platform.
 
-3. Deploy that image to Cloud Run:
+2. Deploy that image to Cloud Run:
    ```
    gcloud run deploy signedurl-service \
      --image gcr.io/${PROJECT_ID}/cloud-builds-submit/signed-url-generator-container:20240502 \
@@ -183,7 +175,8 @@ To make this work, you must:
      --project "$PROJECT_ID"
 
    ```
-   I believe this is required even if you use the same Service account for the Cloud Run service, as you do for signing.
+
+   This is required even if you use the same Service account for the Cloud Run service, as you do for signing.
 
 
 2. Deploy the service with that Service account:
@@ -201,7 +194,7 @@ To make this work, you must:
      --timeout 300
    ```
 
-3. Restrict who can access this service! Since now, anyone with access to the URL can generate signed URLs.
+3. Restrict who can access this service! Remember, anyone with access to the URL can generate signed URLs.
 
 
 
@@ -214,4 +207,3 @@ This material is Copyright 2019-2024 Google LLC and is licensed under the
 ## Bugs
 
 - ??
-
