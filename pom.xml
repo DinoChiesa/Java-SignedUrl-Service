@@ -18,7 +18,7 @@
     <bouncycastle.version>1.80</bouncycastle.version>
     <javalin.version>6.6.0</javalin.version>
     <gson.version>2.13.1</gson.version>
-    <gcp-project-name>${env.PROJECT_ID}</gcp-project-name>
+    <gcp-project-name>${env.REPOSITORY_PROJECT}</gcp-project-name>
     <slf4j.version>2.0.12</slf4j.version>
   </properties>
 
@@ -81,7 +81,7 @@
           use the jib-maven-plugin.
 
           But if you want to just build via maven and push an image to a Container
-          Registry repo, `PROJECT_ID=my-gcp-project mvn compile jib:build`
+          Registry repo, `REPOSITORY_PROJECT=my-gcp-project mvn compile jib:build`
           will do it.
        -->
 
@@ -99,7 +99,7 @@
             -->
             <image>gcr.io/${gcp-project-name}/cloud-builds-submit/${project.artifactId}-container:${project.version}</image>
 
-            <!-- Later, can deploy this with:
+            <!-- Later, can deploy this image into Cloud Run with:
 
                  gcloud run deploy SERVICE-NAME -+-image gcr.io/full.url.here -+-platform managed ...
             -->

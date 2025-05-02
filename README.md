@@ -118,7 +118,7 @@ There are two options - _alternatives_ - desceribed here:
 
 1. Build the container image locally, and publish it to Artifact Registry:
    ```
-   export PROJECT_ID=your-gcp-project-here
+   export REPOSITORY_PROJECT=your-gcp-project-here
    mvn package jib:build
    ```
 
@@ -129,17 +129,41 @@ There are two options - _alternatives_ - desceribed here:
 
    Optionally, you could now run the image locally, or in any container platform.
 
-2. Deploy that image to Cloud Run:
+2. Create the Service Account the cloud run service will use, and grant it the appropriate 
+   roles. 
    ```
-   gcloud run deploy signedurl-service \
-     --image gcr.io/${PROJECT_ID}/cloud-builds-submit/signed-url-generator-container:20240502 \
+   FULL_SA_EMAIL="${SERVICE_ACCOUNT}@${CLOUDRUN_PROJECT}.iam.gserviceaccount.com"
+   gcloud iam service-accounts create "$SERVICE_ACCOUNT" --project="$CLOUDRUN_PROJECT" 
+   sleep 12
+   gcloud projects add-iam-policy-binding "${CLOURUN_PROJECT}" \
+    --condition=None \
+    --member="serviceAccount:${FULL_SA_EMAIL}" \
+    --role="roles/storage.objectViewer" --quiet
+   gcloud projects add-iam-policy-binding "${CLOURUN_PROJECT}" \
+    --condition=None \
+    --member="serviceAccount:${FULL_SA_EMAIL}" \
+    --role="roles/storage.objectCreator" --quiet
+   gcloud iam service-accounts add-iam-policy-binding ${FULL_SA_EMAIL} \
+      --member="serviceAccount:${FULL_SA_EMAIL}\
+      --role='roles/iam.serviceAccountTokenCreator' \
+      --project "$CLOUDRUN_PROJECT"
+   ```
+   
+2. Finally, deploy that image to Cloud Run:
+   ```
+   IMAGE_VERSION=$(xmllint --xpath "//*[local-name()='project']/*[local-name()='version']/text()" pom.xml)
+   ARTIFACT_ID=$(xmllint --xpath "//*[local-name()='project']/*[local-name()='artifactId']/text()" pom.xml)
+   
+   gcloud run deploy ${ARTIFACT_ID} \
+     --image gcr.io/${REPOSITORY_PROJECT}/cloud-builds-submit/${ARTIFACT_ID}-container:${IMAGE_VERSION} \
      --cpu 1 \
-     --memory '256Mi' \
+     --memory '512Mi' \
      --min-instances 0 \
      --max-instances 1 \
      --allow-unauthenticated \
-     --project ${PROJECT_ID}\
-     --region us-west1 \
+     --service-account ${FULL_SA_EMAIL} \
+     --project ${CLOUDRUN_PROJECT} \
+     --region ${CLOUDRUN_REGION} \
      --timeout 300
    ```
 
@@ -167,6 +191,8 @@ And again, access it via the URL emitted by that command.
 
 
 ## Additional Setup for Using signBlob
+
+(This is already covered above)
 
 [`signBlob`](https://cloud.google.com/iam/docs/reference/credentials/rest/v1/projects.serviceAccounts/signBlob) is a method on the `iamcredentials` API in Google Cloud.
 It signs a blob using the system-managed private key for a particular service account. Using the signBlob approach means you do not need to transmit a private key to the service, in order to generated the signed URL.
