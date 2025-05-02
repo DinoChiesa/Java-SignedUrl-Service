@@ -116,7 +116,8 @@ There are two options - _alternatives_ - desceribed here:
 
 ### Building locally and deploying separately
 
-1. Build the container image locally, and publish it to Artifact Registry:
+1. Build the container image locally, and publish it to Artifact Registry.
+   This requires Java v21 or later.
    ```
    export REPOSITORY_PROJECT=your-gcp-project-here
    mvn package jib:build
