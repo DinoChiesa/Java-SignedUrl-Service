@@ -1,4 +1,4 @@
-// Copyright 2019-2024 Google LLC.
+// Copyright © 2019-2024 Google LLC.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -340,11 +340,6 @@ public class SignedUrlGenerator {
     // HttpHeaders headers = response1.headers();
     java.lang.reflect.Type t = new TypeToken<Map<String, Object>>() {}.getType();
     Map<String, Object> responseJson1 = gson.fromJson(response1.body(), t);
-    // {
-    //   "access_token": "ya29.a...",
-    //   "expires_in": 3579,
-    //   "token_type": "Bearer"
-    // }
     String accesstoken = (String) responseJson1.get("access_token");
 
     // POST https://iamcredentials.googleapis.com/v1/{name=projects/*/serviceAccounts/*}:signBlob
